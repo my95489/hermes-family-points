@@ -579,26 +579,25 @@
       // ① CONFIG — Cloudflare KV API Placeholders (extend later)
       // ----------------------------------------------------------------
       const CF = {
-        enabled: false,              // ← flip to true when deploying to CF Pages
-        endpoints: {
-          get:  'https://your-worker.namespace.workers.dev/api/points/:key',
-          set:  'https://your-worker.namespace.workers.dev/api/points/:key',
-          list: 'https://your-worker.namespace.workers.dev/api/points'
-        },
-        async get(key) {
+        enabled: true,
+        apiUrl: '/api/points',
+        async fetchAll() {
           if (!this.enabled) return null;
-          // TODO: fetch(this.endpoints.get.replace(':key', key))
-          throw new Error('CF KV not wired yet');
+          try {
+            const resp = await fetch(this.apiUrl);
+            if (resp.ok) return await resp.json();
+          } catch (e) { /* silently fall back to localStorage */ }
+          return null;
         },
-        async set(key, val) {
+        async saveAll(data) {
           if (!this.enabled) return;
-          // TODO: fetch(this.endpoints.set.replace(':key', key), {method:'PUT', body:JSON.stringify(val)})
-          throw new Error('CF KV not wired yet');
-        },
-        async list() {
-          if (!this.enabled) return [];
-          // TODO: fetch(this.endpoints.list)
-          throw new Error('CF KV not wired yet');
+          try {
+            await fetch(this.apiUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data)
+            });
+          } catch (e) { /* silently fall back to localStorage */ }
         }
       };
 
@@ -691,10 +690,8 @@
 
       function saveData() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(app.data));
-        // CF KV sync stub
-        if (CF.enabled) {
-          CF.set('data', app.data).catch(console.warn);
-        }
+        // Sync to Cloudflare KV
+        CF.saveAll(app.data);
       }
 
       // ----------------------------------------------------------------
@@ -1586,9 +1583,35 @@
         }
       });
 
-      console.log('🏆 Hermes Family Points loaded.');
-      console.log('📦 Data:', app.data);
-      console.log('☁️ CF KV:', CF.enabled ? 'ENABLED' : 'DISABLED (localStorage)');
+      console.log('\U0001f3c6 Hermes Family Points loaded.');
+      console.log('\U0001f4e6 Data:', app.data);
+      console.log('\u2601\ufe0f CF KV:', CF.enabled ? 'ENABLED' : 'DISABLED (localStorage)');
+
+      // Cloud sync: on load, merge cloud data (cloud wins over local)
+      if (CF.enabled) {
+        CF.fetchAll().then(function(cloudData) {
+          if (cloudData && cloudData.members) {
+            var localVersion = app.data.version || 0;
+            var cloudVersion = cloudData.version || 0;
+            // Cloud is newer or same → use cloud data
+            if (cloudVersion >= localVersion) {
+              app.data = cloudData;
+              saveData();
+              console.log('\u2601\ufe0f Synced from cloud (v' + cloudVersion + ')');
+            } else {
+              // Local is newer → push local to cloud
+              CF.saveAll(app.data);
+              console.log('\u2601\ufe0f Pushed local data to cloud (v' + localVersion + ')');
+            }
+          } else {
+            // No cloud data yet → push local
+            CF.saveAll(app.data);
+            console.log('\u2601\ufe0f Initial cloud sync');
+          }
+        }).catch(function() {
+          console.log('\u2601\ufe0f Cloud unavailable, using localStorage');
+        });
+      }
 
     })();
   </script>
