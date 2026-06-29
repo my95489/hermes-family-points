@@ -1544,38 +1544,6 @@
       };
 
       // ----------------------------------------------------------------
-      // ⑪ INIT — default demo data seeding
-      // ----------------------------------------------------------------
-      function seedDemoData() {
-        // Add some demo logs for first-time users
-        const now = Date.now();
-        const day = 86400000;
-        const 姐姐 = app.data.members['姐姐'];
-        const 弟弟 = app.data.members['弟弟'];
-
-        if (姐姐.logs.length === 0) {
-          姐姐.points = 23;
-          姐姐.logs = [
-            { timestamp: now - day * 2, action: '阅读', points: 5, by: '姐姐', note: '' },
-            { timestamp: now - day * 2, action: '收玩具', points: 3, by: '姐姐', note: '' },
-            { timestamp: now - day * 1, action: '写作业', points: 10, by: '姐姐', note: '' },
-            { timestamp: now - day * 0.5, action: '练琴', points: 5, by: '姐姐', note: '' },
-          ];
-        }
-        if (弟弟.logs.length === 0) {
-          弟弟.points = 11;
-          弟弟.logs = [
-            { timestamp: now - day * 1, action: '收玩具', points: 3, by: '弟弟', note: '' },
-            { timestamp: now - day * 0.5, action: '阅读', points: 5, by: '弟弟', note: '' },
-            { timestamp: now - day * 0.2, action: '写作业', points: 10, by: '弟弟', note: '' },
-            { timestamp: now - day * 0.1, action: '扣分', points: -7, by: '家长', note: '吵架' },
-          ];
-        }
-        saveData();
-      }
-
-      seedDemoData();
-
       // ----------------------------------------------------------------
       // ⑫ Goal selector change
       // ----------------------------------------------------------------
