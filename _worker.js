@@ -1,8 +1,6 @@
 /**
  * Hermes Family Points — Cloudflare Worker
- * 
- * 同时处理静态页面和 /api/points KV API
- * 需绑定 KV 命名空间: FAMILY_POINTS
+ * KV 绑定: FAMILY_POINTS
  */
 
 const HTML = `<!DOCTYPE html>
@@ -664,23 +662,6 @@ const HTML = `<!DOCTYPE html>
                 data.members[name] = JSON.parse(JSON.stringify(def));
               }
             }
-            // === Migration: old global tasks → per-member tasks ===
-            // If stored data has top-level 'tasks' but members don't have their own yet
-            if (data.tasks && Array.isArray(data.tasks)) {
-              const oldTasks = data.tasks;
-              for (const name of ['姐姐', '弟弟']) {
-                const m = data.members[name];
-                if (!m.tasks || m.tasks.length === 0) {
-                  // Clone global tasks with unique IDs per member
-                  const prefix = name === '姐姐' ? 'm_' : 'm_';
-                  m.tasks = oldTasks.map((t, i) => ({
-                    ...t,
-                    id: prefix + t.id + '_' + name
-                  }));
-                }
-              }
-              delete data.tasks; // clean up legacy field
-            }
             // Ensure every member has all required fields
             for (const [, m] of Object.entries(data.members)) {
               if (!m.tasks) m.tasks = [];
@@ -709,6 +690,7 @@ const HTML = `<!DOCTYPE html>
       }
 
       function saveData() {
+        app.data.version = (app.data.version || 0) + 1;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(app.data));
         // Sync to Cloudflare KV
         CF.saveAll(app.data);
@@ -1646,6 +1628,7 @@ const HTML = `<!DOCTYPE html>
 
       // Cloud sync: on load, merge cloud data (cloud wins over local)
       if (CF.enabled) {
+        showToast('\\U0001f504 \\u6b63\\u5728\\u540c\\u6b65\\u6570\\u636e...', 2000);
         CF.fetchAll().then(function(cloudData) {
           if (cloudData && cloudData.members) {
             var localVersion = app.data.version || 0;
@@ -1653,8 +1636,10 @@ const HTML = `<!DOCTYPE html>
             // Cloud is newer or same → use cloud data
             if (cloudVersion >= localVersion) {
               app.data = cloudData;
-              saveData();
+              // 直接写 localStorage，不调 saveData()，避免回写 KV 造成循环
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(app.data));
               console.log('\\u2601\\ufe0f Synced from cloud (v' + cloudVersion + ')');
+              showToast('\\u2705 \\u4e91\\u7aef\\u6570\\u636e\\u540c\\u6b65\\u5b8c\\u6210', 1500);
             } else {
               // Local is newer → push local to cloud
               CF.saveAll(app.data);
@@ -1678,59 +1663,38 @@ const HTML = `<!DOCTYPE html>
 
 async function handleApi(request, env) {
   const url = new URL(request.url);
-
   if (request.method === 'OPTIONS') {
     return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      }
+      headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }
     });
   }
-
   if (request.method === 'GET') {
     const data = await env.FAMILY_POINTS.get('family_points_data', 'json');
     return new Response(JSON.stringify(data || null), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      }
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
   }
-
   if (request.method === 'PUT') {
     try {
       const data = await request.json();
       await env.FAMILY_POINTS.put('family_points_data', JSON.stringify(data));
       return new Response(JSON.stringify({ success: true }), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        }
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });
     } catch (e) {
       return new Response(JSON.stringify({ error: e.message }), {
         status: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        }
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });
     }
   }
-
   return new Response('Method not allowed', { status: 405 });
 }
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-
-    if (url.pathname === '/api/points') {
-      return handleApi(request, env);
-    }
-
+    if (url.pathname === '/api/points') return handleApi(request, env);
     return new Response(HTML, {
       headers: { 'Content-Type': 'text/html; charset=utf-8' }
     });

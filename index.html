@@ -657,23 +657,6 @@
                 data.members[name] = JSON.parse(JSON.stringify(def));
               }
             }
-            // === Migration: old global tasks → per-member tasks ===
-            // If stored data has top-level 'tasks' but members don't have their own yet
-            if (data.tasks && Array.isArray(data.tasks)) {
-              const oldTasks = data.tasks;
-              for (const name of ['姐姐', '弟弟']) {
-                const m = data.members[name];
-                if (!m.tasks || m.tasks.length === 0) {
-                  // Clone global tasks with unique IDs per member
-                  const prefix = name === '姐姐' ? 'm_' : 'm_';
-                  m.tasks = oldTasks.map((t, i) => ({
-                    ...t,
-                    id: prefix + t.id + '_' + name
-                  }));
-                }
-              }
-              delete data.tasks; // clean up legacy field
-            }
             // Ensure every member has all required fields
             for (const [, m] of Object.entries(data.members)) {
               if (!m.tasks) m.tasks = [];
@@ -702,6 +685,7 @@
       }
 
       function saveData() {
+        app.data.version = (app.data.version || 0) + 1;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(app.data));
         // Sync to Cloudflare KV
         CF.saveAll(app.data);
@@ -1639,6 +1623,7 @@
 
       // Cloud sync: on load, merge cloud data (cloud wins over local)
       if (CF.enabled) {
+        showToast('\U0001f504 \u6b63\u5728\u540c\u6b65\u6570\u636e...', 2000);
         CF.fetchAll().then(function(cloudData) {
           if (cloudData && cloudData.members) {
             var localVersion = app.data.version || 0;
@@ -1646,8 +1631,10 @@
             // Cloud is newer or same → use cloud data
             if (cloudVersion >= localVersion) {
               app.data = cloudData;
-              saveData();
+              // 直接写 localStorage，不调 saveData()，避免回写 KV 造成循环
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(app.data));
               console.log('\u2601\ufe0f Synced from cloud (v' + cloudVersion + ')');
+              showToast('\u2705 \u4e91\u7aef\u6570\u636e\u540c\u6b65\u5b8c\u6210', 1500);
             } else {
               // Local is newer → push local to cloud
               CF.saveAll(app.data);
