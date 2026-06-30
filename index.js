@@ -1453,7 +1453,7 @@ const HTML = `<!DOCTYPE html>
             html += '<div class="text-xs" style="color:var(--text-secondary);">' + whoText + (l.note ? ' · ' + l.note : '') + '</div>';
             html += '</div>';
             html += '<div class="text-xs" style="color:var(--text-secondary);flex-shrink:0;">' + formatTime(l.timestamp) + '</div>';
-            html += '<button onclick="deleteLog(\'' + l.member + '\',' + l.timestamp + ',\'' + l.action.replace(/'/g,"\\'") + '\')" style="background:none;border:none;cursor:pointer;padding:4px;margin-left:4px;font-size:14px;color:var(--red);">✕</button>';
+            html += '<button onclick="deleteLog(' + l.member + ',' + l.timestamp + ',\'' + l.action.replace(/'/g,"\\'") + '\')" style="background:none;border:none;cursor:pointer;padding:4px;margin-left:4px;font-size:14px;color:var(--red);">✕</button>';
             html += '</div>';
           });
           html += '</div></div>';
