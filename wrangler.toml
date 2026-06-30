@@ -1,6 +1,6 @@
 name = "hermes-family-points"
 compatibility_date = "2026-06-29"
-main = "_worker.js"
+pages_build_output_dir = "."
 
 [[kv_namespaces]]
 binding = "FAMILY_POINTS"
