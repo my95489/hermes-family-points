@@ -1142,48 +1142,63 @@ const HTML = `<!DOCTYPE html>
         }
         empty.style.display = 'none';
 
-        // Group by month (newest first)
-        const groups = groupLogsByMonth(logs);
-        const months = Object.keys(groups).sort().reverse();
+        // Group by day (newest first)
+        var dayMap = {};
+        logs.forEach(function(l) {
+          var d = new Date(l.timestamp);
+          var key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+          var label = d.getMonth()+1 + '月' + d.getDate() + '日';
+          if (!dayMap[key]) { dayMap[key] = { label: label, logs: [], subtotal: 0 }; }
+          dayMap[key].logs.push(l);
+          dayMap[key].subtotal += l.points;
+        });
+        var days = Object.keys(dayMap).sort().reverse();
 
-        let html = '';
-        months.forEach((key, mi) => {
-          const g = groups[key];
-          const subSign = g.subtotal >= 0 ? '+' : '';
-          const subColor = g.subtotal >= 0 ? 'var(--green-dark)' : 'var(--red)';
-          html += \`
-            <div class="flex items-center justify-between px-1 py-2 mt-\${mi === 0 ? '0' : '3'}">
-              <span class="text-xs font-bold" style="color:var(--text-secondary);">📅 \${g.label}</span>
-              <span class="text-xs font-bold" style="color:\${subColor};">\${subSign}\${g.subtotal} 分</span>
-            </div>
-          \`;
-          // Show latest entries per month (reversed within month)
-          const monthLogs = [...g.logs].reverse();
-          monthLogs.forEach(l => {
-            const isPositive = l.points > 0;
-            const whoText = l.by === role ? '自己完成'
-              : l.points > 0 ? '由家长添加'
-              : '由家长扣除';
-            const emoji = isPositive ? '🏅' : '⚠️';
-            html += \`
-              <div class="log-entry">
-                <div class="pts-badge" style="background:\${isPositive ? 'var(--green)' : 'var(--red)'};color:white;">
-                  \${isPositive ? '+' : ''}\${l.points}
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="font-medium text-sm truncate">\${emoji} \${l.action}</div>
-                  <div class="text-xs" style="color:var(--text-secondary);">
-                    \${whoText}
-                    \${l.note ? \`· \${l.note}\` : ''}
-                  </div>
-                </div>
-                <div class="text-xs" style="color:var(--text-secondary);flex-shrink:0;">\${formatTime(l.timestamp)}</div>
-              </div>
-            \`;
+        var todayKey = new Date().getFullYear() + '-' + String(new Date().getMonth()+1).padStart(2,'0') + '-' + String(new Date().getDate()).padStart(2,'0');
+
+        var html = '';
+        days.forEach(function(key, i) {
+          var g = dayMap[key];
+          var subSign = g.subtotal >= 0 ? '+' : '';
+          var subColor = g.subtotal >= 0 ? 'var(--green-dark)' : 'var(--red)';
+          var isToday = (key === todayKey);
+          var collapsed = isToday ? '' : ' style="display:none;"';
+          var arrow = isToday ? '▼' : '▶';
+
+          html += '<div class="day-group">';
+          html += '<div class="day-header" onclick="toggleDay(this)" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin:4px 0;border-radius:12px;background:var(--surface);box-shadow:inset -2px -2px 4px var(--shadow-light),inset 2px 2px 4px var(--shadow-dark);cursor:pointer;">';
+          html += '<span class="text-xs font-bold" style="color:var(--text-secondary);">📅 ' + g.label + ' <span class="arrow" style="font-size:10px;">' + arrow + '</span></span>';
+          html += '<span class="text-xs font-bold" style="color:' + subColor + ';">' + subSign + g.subtotal + ' 分</span>';
+          html += '</div>';
+          html += '<div class="day-body"' + collapsed + '>';
+          g.logs.reverse().forEach(function(l) {
+            var isPositive = l.points > 0;
+            var whoText = l.by === role ? '自己完成' : (l.points > 0 ? '由家长添加' : '由家长扣除');
+            var emoji = isPositive ? '🏅' : '⚠️';
+            html += '<div class="log-entry">';
+            html += '<div class="pts-badge" style="background:' + (isPositive ? 'var(--green)' : 'var(--red)') + ';color:white;">' + (isPositive ? '+' : '') + l.points + '</div>';
+            html += '<div class="flex-1 min-w-0">';
+            html += '<div class="font-medium text-sm truncate">' + emoji + ' ' + l.action + '</div>';
+            html += '<div class="text-xs" style="color:var(--text-secondary);">' + whoText + (l.note ? ' · ' + l.note : '') + '</div>';
+            html += '</div>';
+            html += '<div class="text-xs" style="color:var(--text-secondary);flex-shrink:0;">' + formatTime(l.timestamp) + '</div>';
+            html += '</div>';
           });
+          html += '</div></div>';
         });
         container.innerHTML = html;
       }
+
+      window.toggleDay = function(el) {
+        var body = el.nextElementSibling;
+        if (body.style.display === 'none') {
+          body.style.display = '';
+          el.querySelector('.arrow').textContent = '▼';
+        } else {
+          body.style.display = 'none';
+          el.querySelector('.arrow').textContent = '▶';
+        }
+      };
 
       // ----------------------------------------------------------------
       // ⑧ PARENT DASHBOARD
