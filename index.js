@@ -1416,61 +1416,64 @@ const HTML = `<!DOCTYPE html>
         }
         empty.style.display = 'none';
 
-        // Group by month (newest first)
-        const groups = {};
-        // Sort chronologically for correct subtotal order, then reverse for display
-        const chrono = [...allLogs].sort((a, b) => a.timestamp - b.timestamp);
-        chrono.forEach(l => {
-          const d = new Date(l.timestamp);
-          const key = \`\${d.getFullYear()}-\${String(d.getMonth() + 1).padStart(2, '0')}\`;
-          const label = \`\${d.getFullYear()}年\${d.getMonth() + 1}月\`;
-          if (!groups[key]) groups[key] = { label, logs: [], subtotal: 0 };
-          groups[key].logs.push(l);
-          groups[key].subtotal += l.points;
+        // Group by day (newest first)
+        var dayMap = {};
+        allLogs.forEach(function(l) {
+          var d = new Date(l.timestamp);
+          var key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+          var label = d.getMonth()+1 + '月' + d.getDate() + '日';
+          if (!dayMap[key]) { dayMap[key] = { label: label, logs: [], subtotal: 0 }; }
+          dayMap[key].logs.push(l);
+          dayMap[key].subtotal += l.points;
         });
+        var days = Object.keys(dayMap).sort().reverse();
 
-        const months = Object.keys(groups).sort().reverse();
+        var html = '';
+        days.forEach(function(key) {
+          var g = dayMap[key];
+          var subSign = g.subtotal >= 0 ? '+' : '';
+          var subColor = g.subtotal >= 0 ? 'var(--green-dark)' : 'var(--red)';
+          var collapsed = ' style="display:none;"';
+          var arrow = '▶';
 
-        let html = '';
-        months.forEach((key, mi) => {
-          const g = groups[key];
-          const subSign = g.subtotal >= 0 ? '+' : '';
-          const subColor = g.subtotal >= 0 ? 'var(--green-dark)' : 'var(--red)';
-          html += \`
-            <div class="flex items-center justify-between px-1 py-2 mt-\${mi === 0 ? '0' : '3'}">
-              <span class="text-xs font-bold" style="color:var(--text-secondary);">📅 \${g.label}</span>
-              <span class="text-xs font-bold" style="color:\${subColor};">\${subSign}\${g.subtotal} 分</span>
-            </div>
-          \`;
-          // Logs within month: newest first
-          const monthLogs = [...g.logs].reverse();
-          monthLogs.forEach(l => {
-            const isPositive = l.points > 0;
-            const whoText = l.by === '家长' && l.points < 0 ? '由家长扣除'
-              : l.by === '家长' ? '由家长添加'
-              : '自主完成';
-            const emoji = isPositive ? '🏅' : '⚠️';
-            html += \`
-              <div class="log-entry">
-                <div class="pts-badge" style="background:\${isPositive ? 'var(--green)' : 'var(--red)'};color:white;">
-                  \${isPositive ? '+' : ''}\${l.points}
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="font-medium text-sm truncate">
-                    \${getEmoji(l.member)} \${l.member} · \${emoji} \${l.action}
-                  </div>
-                  <div class="text-xs" style="color:var(--text-secondary);">
-                    \${whoText}
-                    \${l.note ? \`· \${l.note}\` : ''}
-                  </div>
-                </div>
-                <div class="text-xs" style="color:var(--text-secondary);flex-shrink:0;">\${formatTime(l.timestamp)}</div>
-              </div>
-            \`;
+          html += '<div class="day-group">';
+          html += '<div class="day-header" onclick="toggleDay(this)" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin:4px 0;border-radius:12px;background:var(--surface);box-shadow:inset -2px -2px 4px var(--shadow-light),inset 2px 2px 4px var(--shadow-dark);cursor:pointer;">';
+          html += '<span class="text-xs font-bold" style="color:var(--text-secondary);">📅 ' + g.label + ' <span class="arrow" style="font-size:10px;">' + arrow + '</span></span>';
+          html += '<span class="text-xs font-bold" style="color:' + subColor + ';">' + subSign + g.subtotal + ' 分</span>';
+          html += '</div>';
+          html += '<div class="day-body"' + collapsed + '>';
+          g.logs.reverse().forEach(function(l) {
+            var isPositive = l.points > 0;
+            var whoText = l.by === '家长' && l.points < 0 ? '由家长扣除' : (l.by === '家长' ? '由家长添加' : '自主完成');
+            var emoji = isPositive ? '🏅' : '⚠️';
+            html += '<div class="log-entry">';
+            html += '<div class="pts-badge" style="background:' + (isPositive ? 'var(--green)' : 'var(--red)') + ';color:white;">' + (isPositive ? '+' : '') + l.points + '</div>';
+            html += '<div class="flex-1 min-w-0">';
+            html += '<div class="font-medium text-sm truncate">' + getEmoji(l.member) + ' ' + l.member + ' · ' + emoji + ' ' + l.action + '</div>';
+            html += '<div class="text-xs" style="color:var(--text-secondary);">' + whoText + (l.note ? ' · ' + l.note : '') + '</div>';
+            html += '</div>';
+            html += '<div class="text-xs" style="color:var(--text-secondary);flex-shrink:0;">' + formatTime(l.timestamp) + '</div>';
+            html += '<button onclick="deleteLog(\'' + l.member + '\',' + l.timestamp + ',\'' + l.action.replace(/'/g,"\\'") + '\')" style="background:none;border:none;cursor:pointer;padding:4px;margin-left:4px;font-size:14px;color:var(--red);">✕</button>';
+            html += '</div>';
           });
+          html += '</div></div>';
         });
         container.innerHTML = html;
       }
+
+      window.deleteLog = function(member, timestamp, action) {
+        if (!confirm('确定要删除 ' + member + ' 的「' + action + '」记录吗？')) return;
+        var m = app.data.members[member];
+        if (!m) return;
+        for (var i = 0; i < m.logs.length; i++) {
+          if (m.logs[i].timestamp === timestamp && m.logs[i].action === action) {
+            m.logs.splice(i, 1);
+            break;
+          }
+        }
+        saveData();
+        renderParentLog();
+      };
 
       // ----------------------------------------------------------------
       // ⑨ TASK EDITOR (Parent)
