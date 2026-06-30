@@ -1166,7 +1166,7 @@ const HTML = `<!DOCTYPE html>
           html += '<div class="day-header" onclick="toggleDay(this)" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin:4px 0;border-radius:12px;background:var(--surface);box-shadow:inset -2px -2px 4px var(--shadow-light),inset 2px 2px 4px var(--shadow-dark);cursor:pointer;">';
           html += '<span class="text-xs font-bold" style="color:var(--text-secondary);">📅 ' + g.label + ' <span class="arrow" style="font-size:10px;">' + arrow + '</span></span>';
           html += '<span><span class="text-xs font-bold" style="color:' + subColor + ';">' + subSign + g.subtotal + ' 分</span>';
-          html += '<span class="text-xs" onclick="event.stopPropagation();deleteDay(\'' + key + '\')" style="cursor:pointer;margin-left:8px;color:var(--red);font-size:13px;">🗑️</span></span>';
+          html += '<span class="text-xs" onclick="event.stopPropagation();deleteDay(&#x27;' + key + '&#x27;)" style="cursor:pointer;margin-left:8px;color:var(--red);font-size:13px;">🗑️</span></span>';
           html += '</div>';
           html += '<div class="day-body"' + collapsed + '>';
           g.logs.reverse().forEach(function(l) {
