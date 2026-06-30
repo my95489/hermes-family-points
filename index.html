@@ -996,10 +996,20 @@
             '<span class="pts">' + (done ? '\u2705 \u5df2\u505a' : '+' + t.points + ' \u5206') + '</span></div>';
         }).join('');
 
-        // Task click handler
+        // Task click handler — 双重防刷：点击前也检查
         tasksContainer.querySelectorAll('.task-btn:not(.pointer-events-none)').forEach(function(btn) {
           btn.addEventListener('click', function () {
             var taskId = this.dataset.taskId;
+            // 即时防刷：点下去马上检查是否已完成
+            var tsNow = getTodayStr();
+            if (member.tasksDoneDate !== tsNow) {
+              member.tasksDoneDate = tsNow;
+              member.tasksDoneToday = [];
+            }
+            if ((member.tasksDoneToday || []).indexOf(taskId) !== -1) {
+              showToast('\u23f3 \u5df2\u5b8c\u6210\uff0c\u6bcf\u5929\u53ea\u80fd\u505a\u4e00\u6b21');
+              return;
+            }
             var task = myTasks.find(function(t) { return t.id === taskId; });
             if (!task) return;
             doChildTask(role, task);
