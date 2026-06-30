@@ -1453,7 +1453,7 @@ const HTML = `<!DOCTYPE html>
             html += '<div class="text-xs" style="color:var(--text-secondary);">' + whoText + (l.note ? ' · ' + l.note : '') + '</div>';
             html += '</div>';
             html += '<div class="text-xs" style="color:var(--text-secondary);flex-shrink:0;">' + formatTime(l.timestamp) + '</div>';
-            html += '<button onclick="deleteLog(' + l.member + ',' + l.timestamp + ',\'' + l.action.replace(/'/g,"\\'") + '\')" style="background:none;border:none;cursor:pointer;padding:4px;margin-left:4px;font-size:14px;color:var(--red);">✕</button>';
+            var _encAct = encodeURIComponent(l.action); html += '<button onclick="deleteLog(' + l.member + ',' + l.timestamp + ',&#x27;' + _encAct + '&#x27;)" style="background:none;border:none;cursor:pointer;padding:4px;margin-left:4px;font-size:14px;color:var(--red);">✕</button>';
             html += '</div>';
           });
           html += '</div></div>';
@@ -1461,7 +1461,8 @@ const HTML = `<!DOCTYPE html>
         container.innerHTML = html;
       }
 
-      window.deleteLog = function(member, timestamp, action) {
+      window.deleteLog = function(member, timestamp, actionEncoded) {
+        var action = decodeURIComponent(actionEncoded);
         if (!confirm('确定要删除 ' + member + ' 的「' + action + '」记录吗？')) return;
         var m = app.data.members[member];
         if (!m) return;
