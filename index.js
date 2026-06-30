@@ -1467,7 +1467,7 @@ const HTML = `<!DOCTYPE html>
         var m = app.data.members[member];
         if (!m) return;
         for (var i = 0; i < m.logs.length; i++) {
-          if (m.logs[i].timestamp === timestamp && m.logs[i].action === action) {
+          if (Number(m.logs[i].timestamp) === Number(timestamp) && m.logs[i].action === action) {
             m.logs.splice(i, 1);
             break;
           }
