@@ -1154,16 +1154,13 @@ const HTML = `<!DOCTYPE html>
         });
         var days = Object.keys(dayMap).sort().reverse();
 
-        var todayKey = new Date().getFullYear() + '-' + String(new Date().getMonth()+1).padStart(2,'0') + '-' + String(new Date().getDate()).padStart(2,'0');
-
         var html = '';
         days.forEach(function(key, i) {
           var g = dayMap[key];
           var subSign = g.subtotal >= 0 ? '+' : '';
           var subColor = g.subtotal >= 0 ? 'var(--green-dark)' : 'var(--red)';
-          var isToday = (key === todayKey);
-          var collapsed = isToday ? '' : ' style="display:none;"';
-          var arrow = isToday ? '▼' : '▶';
+          var collapsed = ' style="display:none;"';
+          var arrow = '▶';
 
           html += '<div class="day-group">';
           html += '<div class="day-header" onclick="toggleDay(this)" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin:4px 0;border-radius:12px;background:var(--surface);box-shadow:inset -2px -2px 4px var(--shadow-light),inset 2px 2px 4px var(--shadow-dark);cursor:pointer;">';
