@@ -1,0 +1,7 @@
+name = "hermes-family-points"
+compatibility_date = "2026-06-29"
+main = "index.js"
+
+[[kv_namespaces]]
+binding = "FAMILY_POINTS"
+id = "0173cff3fd65473b91ad791e15ffca2d"
