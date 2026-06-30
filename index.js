@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+const HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -372,7 +372,7 @@
     </div>
 
     <div class="text-center pb-3" style="flex-shrink:0;">
-      <div style="font-size:11px; color:var(--text-secondary); opacity:0.5;">数据存储在本地 · 家长可对接 Cloudflare KV</div>
+      <div style="font-size:11px; color:var(--text-secondary); opacity:0.5;">已对接 Cloudflare KV，数据自动跨设备同步</div>
     </div>
   </div>
 
@@ -624,7 +624,7 @@
       // ② DATA LAYER — localStorage with CF KV fallback stub
       // ----------------------------------------------------------------
       const STORAGE_KEY = 'hermes_family_points';
-      const DATA_VERSION = 2;
+      const DATA_VERSION = 3;
 
       const DEFAULT_DATA = {
         members: {
@@ -657,6 +657,11 @@
           const raw = localStorage.getItem(STORAGE_KEY);
           if (raw) {
             const data = JSON.parse(raw);
+            // 加载时清除可能的 _processing 死锁
+            delete data._processing;
+            for (var _lp in data.members) {
+              delete data.members[_lp]._processing;
+            }
             // Ensure all members exist (in case new ones added later)
             for (const [name, def] of Object.entries(DEFAULT_DATA.members)) {
               if (!data.members[name]) {
@@ -669,6 +674,9 @@
               if (!m.tasksDoneToday) m.tasksDoneToday = [];
               if (!m.tasksDoneDate) m.tasksDoneDate = '';
               if (m.goal === undefined) m.goal = null;
+              // 始终清除 tasksDoneToday（云同步已排除此字段，localStorage 残留会误判）
+              m.tasksDoneToday = [];
+              m.tasksDoneDate = '';
             }
             // Version migration: clear old demo data + update PINs
             if (!data.version || data.version < DATA_VERSION) {
@@ -680,6 +688,9 @@
                 if (DEFAULT_DATA.members[name]) {
                   m.pin = DEFAULT_DATA.members[name].pin;
                 }
+                // 清除残留的本机状态（云同步不再同步这些字段）
+                m.tasksDoneToday = [];
+                m.tasksDoneDate = '';
               }
               data.version = DATA_VERSION;
               localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -691,10 +702,17 @@
       }
 
       function saveData() {
-        app.data.version = (app.data.version || 0) + 1;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(app.data));
-        // Sync to Cloudflare KV
-        CF.saveAll(app.data);
+        try {
+          delete app.data._processing;
+          for (var _sp in app.data.members) {
+            delete app.data.members[_sp]._processing;
+          }
+          app.data.version = (app.data.version || 0) + 1;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(app.data));
+          CF.saveAll(app.data);
+        } catch (e) {
+          console.error('saveData error:', e);
+        }
       }
 
       // ----------------------------------------------------------------
@@ -719,7 +737,7 @@
 
       function formatTime(ts) {
         const d = new Date(ts);
-        return `${d.getMonth()+1}月${d.getDate()}日 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        return \`\${d.getMonth()+1}月\${d.getDate()}日 \${String(d.getHours()).padStart(2,'0')}:\${String(d.getMinutes()).padStart(2,'0')}\`;
       }
 
       function getTodayStr() {
@@ -821,7 +839,7 @@
 
       function updatePinDots() {
         for (let i = 0; i < 4; i++) {
-          const dot = $(`#pin-dot-${i}`);
+          const dot = $(\`#pin-dot-\${i}\`);
           if (dot) {
             dot.classList.toggle('filled', i < app.pinInput.length);
           }
@@ -882,7 +900,7 @@
             $('#pin-error').textContent = '请输入4位密码';
             vibrate(15);
           }
-        } else if (/^\d$/.test(key)) {
+        } else if (/^\\d$/.test(key)) {
           if (app.pinInput.length < 4) {
             app.pinInput += key;
             updatePinDots();
@@ -905,8 +923,8 @@
         const sorted = [...logs].sort((a, b) => a.timestamp - b.timestamp);
         sorted.forEach(l => {
           const d = new Date(l.timestamp);
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          const label = `${d.getFullYear()}年${d.getMonth() + 1}月`;
+          const key = \`\${d.getFullYear()}-\${String(d.getMonth() + 1).padStart(2, '0')}\`;
+          const label = \`\${d.getFullYear()}年\${d.getMonth() + 1}月\`;
           if (!groups[key]) groups[key] = { label, logs: [], subtotal: 0 };
           groups[key].logs.push(l);
           groups[key].subtotal += l.points;
@@ -921,7 +939,7 @@
         var container = document.getElementById('undo-container');
         if (!container) return;
         if (!app.undoInfo) { container.innerHTML = ''; return; }
-        container.innerHTML = '<button onclick="undoLastAction()" class="neu-btn w-full rounded-xl py-3 mb-3 text-sm font-bold flex items-center justify-center gap-2" style="color:var(--orange);">\u21a9\ufe0f \u64a4\u9500\u300c' + app.undoInfo.desc + '\u300d</button>';
+        container.innerHTML = '<button onclick="undoLastAction()" class="neu-btn w-full rounded-xl py-3 mb-3 text-sm font-bold flex items-center justify-center gap-2" style="color:var(--orange);">\\u21a9\️ \\u64a4\\u9500\\u300c' + app.undoInfo.desc + '\\u300d</button>';
       }
 
       window.undoLastAction = function () {
@@ -943,14 +961,14 @@
         app.undoInfo = null;
         if (app.undoTimer) { clearTimeout(app.undoTimer); app.undoTimer = null; }
         saveData();
-        if (app.currentRole === '\u5bb6\u957f') {
+        if (app.currentRole === '\\u5bb6\\u957f') {
           renderParentDashboard();
         } else {
           renderChildDashboard();
           renderChildLog(info.member);
         }
         showUndoButton();
-        showToast('\u2705 \u5df2\u64a4\u9500');
+        showToast('✅ 已\\u64a4\\u9500');
       };
 
       // ----------------------------------------------------------------
@@ -980,12 +998,12 @@
           var prog = Math.min(member.points / member.goal.target, 1);
           var pct = Math.round(prog * 100);
           goalContainer.innerHTML = '<div class="neu rounded-2xl p-4 mb-4" style="background:var(--bg);">' +
-            '<div class="text-sm font-semibold mb-1">\U0001f3af \u6211\u7684\u76ee\u6807: ' + member.goal.label + '</div>' +
+            '<div class="text-sm font-semibold mb-1">\\U0001f3af \\u6211\\u7684\\u76ee\\u6807: ' + member.goal.label + '</div>' +
             '<div class="w-full h-3 rounded-full" style="background:var(--shadow-dark);overflow:hidden;">' +
             '<div class="h-full rounded-full transition-all duration-500" style="width:' + pct + '%;background:linear-gradient(90deg,var(--pink),var(--purple));"></div></div>' +
             '<div class="flex justify-between text-xs mt-1" style="color:var(--text-secondary);">' +
-            '<span>' + member.points + ' \u5206</span>' +
-            '<span>' + (pct >= 100 ? '\U0001f389 \u8fbe\u6210\uff01' : member.goal.target + ' \u5206') + '</span></div></div>';
+            '<span>' + member.points + ' \\u5206</span>' +
+            '<span>' + (pct >= 100 ? '\\U0001f389 \\u8fbe成\\uff01' : member.goal.target + ' \\u5206') + '</span></div></div>';
           goalContainer.style.display = '';
         } else {
           goalContainer.style.display = 'none';
@@ -999,13 +1017,14 @@
           return '<div class="task-btn' + (done ? ' opacity-40 pointer-events-none' : '') + '" data-task-id="' + t.id + '">' +
             '<span class="icon">' + t.icon + '</span>' +
             '<span class="name">' + t.name + '</span>' +
-            '<span class="pts">' + (done ? '\u2705 \u5df2\u505a' : '+' + t.points + ' \u5206') + '</span></div>';
+            '<span class="pts">' + (done ? '✅ 已做' : '+' + t.points + ' \\u5206') + '</span></div>';
         }).join('');
 
         // Task click handler — 双重防刷：点击前也检查
         tasksContainer.querySelectorAll('.task-btn:not(.pointer-events-none)').forEach(function(btn) {
           btn.addEventListener('click', function () {
             var taskId = this.dataset.taskId;
+            // 调试：点击时打印当前 tasksDoneToday
             // 即时防刷：点下去马上检查是否已完成
             var tsNow = getTodayStr();
             if (member.tasksDoneDate !== tsNow) {
@@ -1013,12 +1032,15 @@
               member.tasksDoneToday = [];
             }
             if ((member.tasksDoneToday || []).indexOf(taskId) !== -1) {
-              showToast('\u23f3 \u5df2\u5b8c\u6210\uff0c\u6bcf\u5929\u53ea\u80fd\u505a\u4e00\u6b21');
+              showToast('⏳ 已完成');
               return;
             }
             var task = myTasks.find(function(t) { return t.id === taskId; });
             if (!task) return;
-            doChildTask(role, task);
+            // 找到任务后再标记，防止误标
+              member.tasksDoneToday.push(taskId);
+              console.log('CALL doChildTask:', role, task.id, task.name, 'member.points before:', member.points);
+              doChildTask(role, task);
           });
         });
 
@@ -1026,63 +1048,92 @@
         renderChildLog(role);
       }
 
-      function doChildTask(role, task) {
+      function doChildTask(role, taskOrId) {
         var member = app.data.members[role];
-        // \u91cd\u5165\u4fdd\u62a4
+        if (!member) return;
         if (member._processing) return;
         member._processing = true;
 
-        // Daily lock
-        var ts = getTodayStr();
-        if (member.tasksDoneDate !== ts) {
-          member.tasksDoneDate = ts;
-          member.tasksDoneToday = [];
-        }
-        if ((member.tasksDoneToday || []).indexOf(task.id) !== -1) {
+        try {
+          // 1. 终极兼容：无论传进来的是对象还是字符串ID，都能精准找到任务
+          var task = null;
+          if (typeof taskOrId === 'string') {
+            task = (member.tasks || []).find(function(t) { return t.id === taskOrId; });
+          } else {
+            task = taskOrId;
+          }
+
+          if (!task) {
+            showToast('❌ 找不到该任务信息');
+            return;
+          }
+
+          // 2. 强制剥离出数字（防止 AI 弄错字段名，同时兼容 points 和 score）
+          var ptsToAdd = parseInt(task.points || task.score || 0, 10);
+          if (isNaN(ptsToAdd) || ptsToAdd === 0) {
+            showToast('⚠️ 任务积分设置无效，请编辑任务');
+            return;
+          }
+
+          // 3. 校验今天是否完成过
+          var ts = getTodayStr();
+          if (member.tasksDoneDate !== ts) {
+            member.tasksDoneDate = ts;
+            member.tasksDoneToday = [];
+          }
+          if ((member.tasksDoneToday || []).indexOf(task.id) !== -1) {
+            showToast('⏳ 这个任务今天已经完成过了');
+            return;
+          }
+
+          // 4. 撤销机制
+          if (!member.logs) member.logs = [];
+          app.undoInfo = { member: role, points: -ptsToAdd, logIndex: member.logs.length, desc: task.name };
+          if (app.undoTimer) clearTimeout(app.undoTimer);
+          app.undoTimer = setTimeout(function() { app.undoInfo = null; showUndoButton(); }, 10000);
+          showUndoButton();
+
+          // 5. 核心暴力加分：强制读取当前分为数字，加上新分
+          var oldPts = parseInt(member.points, 10) || 0;
+          member.points = oldPts + ptsToAdd;
+
+          console.log('🎯 加分成功！从 ' + oldPts + ' 变成 ' + member.points);
+
+          // 6. 记录日志和防刷分名单
+          member.logs.push({
+            timestamp: Date.now(),
+            action: task.name,
+            points: ptsToAdd,
+            by: role,
+            note: ''
+          });
+          member.tasksDoneToday.push(task.id);
+
+          // 7. 保存并渲染界面
+          saveData();
+          renderChildDashboard();
+          renderChildLog(role);
+
+          // 8. 触发飞出特效
+          var ptsEl = document.getElementById('child-points');
+          if (ptsEl) {
+            var rect = ptsEl.getBoundingClientRect();
+            var cx = rect.left + rect.width / 2;
+            var cy = rect.top + 20;
+            showFloatUp(cx - 20, cy, '+' + ptsToAdd, 'var(--green-dark)');
+          }
+
+          vibrate(10);
+          playTune('success');
+          showToast('🎉 ' + task.name + ' +' + ptsToAdd + ' 分！');
+
+        } catch (e) {
+          console.error('加分报错:', e);
+          showToast('❌ 加分出现异常');
+        } finally {
+          // 永远保证解锁，永不假死
           member._processing = false;
-          showToast('\u23f3 \u8fd9\u4e2a\u4efb\u52a1\u4eca\u5929\u5df2\u7ecf\u5b8c\u6210\u8fc7\u4e86');
-          return;
         }
-
-        // Undo info
-        app.undoInfo = { member: role, points: -task.points, logIndex: member.logs.length, desc: task.name };
-        if (app.undoTimer) clearTimeout(app.undoTimer);
-        app.undoTimer = setTimeout(function() { app.undoInfo = null; showUndoButton(); }, 10000);
-        showUndoButton();
-
-        member.points += task.points;
-        member.logs.push({
-          timestamp: Date.now(),
-          action: task.name,
-          points: task.points,
-          by: role,
-          note: ''
-        });
-        saveData();
-
-        // Re-render
-        renderChildDashboard();
-        renderChildLog(role);
-
-        // Float-up animation
-        var ptsEl = $('#child-points');
-        if (ptsEl) {
-          var rect = ptsEl.getBoundingClientRect();
-          var cx = rect.left + rect.width / 2;
-          var cy = rect.top + 20;
-          showFloatUp(cx - 20, cy, '+' + task.points, 'var(--green-dark)');
-        }
-
-        vibrate(10);
-        playTune('success');
-        showToast('\U0001f389 ' + task.name + ' +' + task.points + ' \u5206\uff01');
-
-        if (member.goal && member.goal.target > 0 && member.points >= member.goal.target) {
-          setTimeout(function() {
-            showToast('\U0001f38a ' + role + ' \u8fbe\u6210\u76ee\u6807\u300c' + member.goal.label + '\u300d\uff01\u592a\u68d2\u4e86\uff01');
-          }, 400);
-        }
-        member._processing = false;
       }
 
       function renderChildLog(role) {
@@ -1107,12 +1158,12 @@
           const g = groups[key];
           const subSign = g.subtotal >= 0 ? '+' : '';
           const subColor = g.subtotal >= 0 ? 'var(--green-dark)' : 'var(--red)';
-          html += `
-            <div class="flex items-center justify-between px-1 py-2 mt-${mi === 0 ? '0' : '3'}">
-              <span class="text-xs font-bold" style="color:var(--text-secondary);">📅 ${g.label}</span>
-              <span class="text-xs font-bold" style="color:${subColor};">${subSign}${g.subtotal} 分</span>
+          html += \`
+            <div class="flex items-center justify-between px-1 py-2 mt-\${mi === 0 ? '0' : '3'}">
+              <span class="text-xs font-bold" style="color:var(--text-secondary);">📅 \${g.label}</span>
+              <span class="text-xs font-bold" style="color:\${subColor};">\${subSign}\${g.subtotal} 分</span>
             </div>
-          `;
+          \`;
           // Show latest entries per month (reversed within month)
           const monthLogs = [...g.logs].reverse();
           monthLogs.forEach(l => {
@@ -1121,21 +1172,21 @@
               : l.points > 0 ? '由家长添加'
               : '由家长扣除';
             const emoji = isPositive ? '🏅' : '⚠️';
-            html += `
+            html += \`
               <div class="log-entry">
-                <div class="pts-badge" style="background:${isPositive ? 'var(--green)' : 'var(--red)'};color:white;">
-                  ${isPositive ? '+' : ''}${l.points}
+                <div class="pts-badge" style="background:\${isPositive ? 'var(--green)' : 'var(--red)'};color:white;">
+                  \${isPositive ? '+' : ''}\${l.points}
                 </div>
                 <div class="flex-1 min-w-0">
-                  <div class="font-medium text-sm truncate">${emoji} ${l.action}</div>
+                  <div class="font-medium text-sm truncate">\${emoji} \${l.action}</div>
                   <div class="text-xs" style="color:var(--text-secondary);">
-                    ${whoText}
-                    ${l.note ? `· ${l.note}` : ''}
+                    \${whoText}
+                    \${l.note ? \`· \${l.note}\` : ''}
                   </div>
                 </div>
-                <div class="text-xs" style="color:var(--text-secondary);flex-shrink:0;">${formatTime(l.timestamp)}</div>
+                <div class="text-xs" style="color:var(--text-secondary);flex-shrink:0;">\${formatTime(l.timestamp)}</div>
               </div>
-            `;
+            \`;
           });
         });
         container.innerHTML = html;
@@ -1166,7 +1217,7 @@
         const container = $('#parent-overview');
         const children = ['姐姐', '弟弟'];
         const now = new Date();
-        const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const thisMonth = \`\${now.getFullYear()}-\${String(now.getMonth() + 1).padStart(2, '0')}\`;
 
         container.innerHTML = children.map(name => {
           const m = app.data.members[name];
@@ -1177,25 +1228,25 @@
           let monthPoints = 0;
           (m.logs || []).forEach(l => {
             const d = new Date(l.timestamp);
-            const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const k = \`\${d.getFullYear()}-\${String(d.getMonth() + 1).padStart(2, '0')}\`;
             if (k === thisMonth) monthPoints += l.points;
           });
           const mSign = monthPoints >= 0 ? '+' : '';
           const mColor = monthPoints >= 0 ? 'var(--green-dark)' : 'var(--red)';
-          return `
+          return \`
             <div class="neu rounded-2xl p-4 flex items-center gap-4">
-              <div class="w-12 h-12 rounded-full flex items-center justify-center text-xl" style="background:${accentBg};">${emoji}</div>
+              <div class="w-12 h-12 rounded-full flex items-center justify-center text-xl" style="background:\${accentBg};">\${emoji}</div>
               <div class="flex-1">
-                <div class="font-bold">${name}</div>
-                <div class="points-number text-2xl" style="color:${accent};">${m.points}</div>
-                <div class="text-xs font-medium" style="color:${mColor};">本月 ${mSign}${monthPoints} 分</div>
+                <div class="font-bold">\${name}</div>
+                <div class="points-number text-2xl" style="color:\${accent};">\${m.points}</div>
+                <div class="text-xs font-medium" style="color:\${mColor};">本月 \${mSign}\${monthPoints} 分</div>
               </div>
               <div class="flex gap-2">
-                <button onclick="parentQuick('${name}', 5)" class="neu-btn w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold" style="color:var(--green-dark);">+5</button>
-                <button onclick="parentQuick('${name}', -5)" class="neu-btn w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold" style="color:var(--red);">-5</button>
+                <button onclick="parentQuick('\${name}', 5)" class="neu-btn w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold" style="color:var(--green-dark);">+5</button>
+                <button onclick="parentQuick('\${name}', -5)" class="neu-btn w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold" style="color:var(--red);">-5</button>
               </div>
             </div>
-          `;
+          \`;
         }).join('');
       }
 
@@ -1212,8 +1263,8 @@
           const m = app.data.members[name];
           (m.logs || []).forEach(l => {
             const d = new Date(l.timestamp);
-            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            const label = `${d.getFullYear()}年${d.getMonth() + 1}月`;
+            const key = \`\${d.getFullYear()}-\${String(d.getMonth() + 1).padStart(2, '0')}\`;
+            const label = \`\${d.getFullYear()}年\${d.getMonth() + 1}月\`;
             if (!monthMap[key]) monthMap[key] = { label, 姐姐: 0, 弟弟: 0 };
             monthMap[key][name] += l.points;
           });
@@ -1230,21 +1281,21 @@
           const row = monthMap[key];
           const ptsColor = (val) => val >= 0 ? 'var(--green-dark)' : 'var(--red)';
           const ptsSign = (val) => val >= 0 ? '+' : '';
-          return `
+          return \`
             <div class="neu rounded-xl p-3">
-              <div class="text-xs font-bold mb-2" style="color:var(--text-secondary);">📅 ${row.label}</div>
+              <div class="text-xs font-bold mb-2" style="color:var(--text-secondary);">📅 \${row.label}</div>
               <div class="flex gap-4">
                 <div class="flex-1 flex items-center gap-2">
                   <span>👧</span>
-                  <span class="text-sm font-bold" style="color:${ptsColor(row['姐姐'])};">${ptsSign(row['姐姐'])}${row['姐姐']} 分</span>
+                  <span class="text-sm font-bold" style="color:\${ptsColor(row['姐姐'])};">\${ptsSign(row['姐姐'])}\${row['姐姐']} 分</span>
                 </div>
                 <div class="flex-1 flex items-center gap-2">
                   <span>👦</span>
-                  <span class="text-sm font-bold" style="color:${ptsColor(row['弟弟'])};">${ptsSign(row['弟弟'])}${row['弟弟']} 分</span>
+                  <span class="text-sm font-bold" style="color:\${ptsColor(row['弟弟'])};">\${ptsSign(row['弟弟'])}\${row['弟弟']} 分</span>
                 </div>
               </div>
             </div>
-          `;
+          \`;
         }).join('');
       }
 
@@ -1266,7 +1317,7 @@
           note: '家长手动'
         });
         saveData();
-        showToast(`${delta > 0 ? '✅' : '⚠️'} ${name} ${delta > 0 ? '+' : ''}${delta} 分`);
+        showToast(\`\${delta > 0 ? '✅' : '⚠️'} \${name} \${delta > 0 ? '+' : ''}\${delta} 分\`);
         // Float-up animation on the points number
         const overviewCards = $$('#parent-overview .neu');
         overviewCards.forEach(card => {
@@ -1276,7 +1327,7 @@
               const rect = ptsEl.getBoundingClientRect();
               const cx = rect.left + rect.width / 2;
               const cy = rect.top + 10;
-              showFloatUp(cx - 20, cy, `${delta > 0 ? '+' : ''}${delta}`, delta > 0 ? 'var(--green-dark)' : 'var(--red)');
+              showFloatUp(cx - 20, cy, \`\${delta > 0 ? '+' : ''}\${delta}\`, delta > 0 ? 'var(--green-dark)' : 'var(--red)');
             }
           }
         });
@@ -1306,7 +1357,7 @@
         });
         saveData();
         $('#parent-note').value = '';
-        showToast(`✅ ${name} +${val} 分${note ? '（'+note+'）' : ''}`);
+        showToast(\`✅ \${name} +\${val} 分\${note ? '（'+note+'）' : ''}\`);
         renderParentOverview();
         renderMonthlyReport();
         renderParentLog();
@@ -1333,7 +1384,7 @@
         });
         saveData();
         $('#parent-note').value = '';
-        showToast(`⚠️ ${name} -${val} 分${note ? '（'+note+'）' : ''}`);
+        showToast(\`⚠️ \${name} -\${val} 分\${note ? '（'+note+'）' : ''}\`);
         renderParentOverview();
         renderMonthlyReport();
         renderParentLog();
@@ -1366,8 +1417,8 @@
         const chrono = [...allLogs].sort((a, b) => a.timestamp - b.timestamp);
         chrono.forEach(l => {
           const d = new Date(l.timestamp);
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          const label = `${d.getFullYear()}年${d.getMonth() + 1}月`;
+          const key = \`\${d.getFullYear()}-\${String(d.getMonth() + 1).padStart(2, '0')}\`;
+          const label = \`\${d.getFullYear()}年\${d.getMonth() + 1}月\`;
           if (!groups[key]) groups[key] = { label, logs: [], subtotal: 0 };
           groups[key].logs.push(l);
           groups[key].subtotal += l.points;
@@ -1380,12 +1431,12 @@
           const g = groups[key];
           const subSign = g.subtotal >= 0 ? '+' : '';
           const subColor = g.subtotal >= 0 ? 'var(--green-dark)' : 'var(--red)';
-          html += `
-            <div class="flex items-center justify-between px-1 py-2 mt-${mi === 0 ? '0' : '3'}">
-              <span class="text-xs font-bold" style="color:var(--text-secondary);">📅 ${g.label}</span>
-              <span class="text-xs font-bold" style="color:${subColor};">${subSign}${g.subtotal} 分</span>
+          html += \`
+            <div class="flex items-center justify-between px-1 py-2 mt-\${mi === 0 ? '0' : '3'}">
+              <span class="text-xs font-bold" style="color:var(--text-secondary);">📅 \${g.label}</span>
+              <span class="text-xs font-bold" style="color:\${subColor};">\${subSign}\${g.subtotal} 分</span>
             </div>
-          `;
+          \`;
           // Logs within month: newest first
           const monthLogs = [...g.logs].reverse();
           monthLogs.forEach(l => {
@@ -1394,23 +1445,23 @@
               : l.by === '家长' ? '由家长添加'
               : '自主完成';
             const emoji = isPositive ? '🏅' : '⚠️';
-            html += `
+            html += \`
               <div class="log-entry">
-                <div class="pts-badge" style="background:${isPositive ? 'var(--green)' : 'var(--red)'};color:white;">
-                  ${isPositive ? '+' : ''}${l.points}
+                <div class="pts-badge" style="background:\${isPositive ? 'var(--green)' : 'var(--red)'};color:white;">
+                  \${isPositive ? '+' : ''}\${l.points}
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="font-medium text-sm truncate">
-                    ${getEmoji(l.member)} ${l.member} · ${emoji} ${l.action}
+                    \${getEmoji(l.member)} \${l.member} · \${emoji} \${l.action}
                   </div>
                   <div class="text-xs" style="color:var(--text-secondary);">
-                    ${whoText}
-                    ${l.note ? `· ${l.note}` : ''}
+                    \${whoText}
+                    \${l.note ? \`· \${l.note}\` : ''}
                   </div>
                 </div>
-                <div class="text-xs" style="color:var(--text-secondary);flex-shrink:0;">${formatTime(l.timestamp)}</div>
+                <div class="text-xs" style="color:var(--text-secondary);flex-shrink:0;">\${formatTime(l.timestamp)}</div>
               </div>
-            `;
+            \`;
           });
         });
         container.innerHTML = html;
@@ -1430,7 +1481,7 @@
         const colors = { '姐姐': { bg: 'var(--pink-bg)', text: 'var(--pink-dark)' }, '弟弟': { bg: 'var(--blue-bg)', text: 'var(--blue-dark)' } };
         const activeColors = { '姐姐': { bg: 'var(--pink-dark)', text: '#fff' }, '弟弟': { bg: 'var(--blue-dark)', text: '#fff' } };
         kids.forEach(name => {
-          const btn = $(`#task-tab-${name}`);
+          const btn = $(\`#task-tab-\${name}\`);
           if (!btn) return;
           const c = name === app.taskChild ? activeColors[name] : colors[name];
           btn.style.background = c.bg;
@@ -1452,18 +1503,18 @@
 
         container.innerHTML = tasks.map(t => {
           const ptsOpts = [1,2,3,5,8,10,15,20].map(v =>
-            `<option value="${v}" ${v === t.points ? 'selected' : ''}>${v}分</option>`
+            \`<option value="\${v}" \${v === t.points ? 'selected' : ''}>\${v}分</option>\`
           ).join('');
-          return `
-            <div class="task-edit-item" data-task-id="${t.id}">
+          return \`
+            <div class="task-edit-item" data-task-id="\${t.id}">
               <select class="emoji-picker text-xl bg-transparent outline-none" style="width:40px;">
-                ${emojiOptions.map(e => `<option value="${e}" ${e === t.icon ? 'selected' : ''}>${e}</option>`).join('')}
+                \${emojiOptions.map(e => \`<option value="\${e}" \${e === t.icon ? 'selected' : ''}>\${e}</option>\`).join('')}
               </select>
-              <input type="text" class="task-name flex-1 bg-transparent outline-none text-sm font-medium" value="${t.name}" placeholder="任务名称">
-              <select class="task-points text-sm bg-transparent outline-none">${ptsOpts}</select>
+              <input type="text" class="task-name flex-1 bg-transparent outline-none text-sm font-medium" value="\${t.name}" placeholder="任务名称">
+              <select class="task-points text-sm bg-transparent outline-none">\${ptsOpts}</select>
               <button class="del-task text-lg px-1" style="color:var(--red);">✕</button>
             </div>
-          `;
+          \`;
         }).join('');
 
         // Empty state
@@ -1585,16 +1636,16 @@
         reader.onload = function (ev) {
           try {
             var data = JSON.parse(ev.target.result);
-            if (!data.members || !data.members['\u59d0\u59d0'] || !data.members['\u5f1f\u5f1f']) {
-              showToast('\u274c \u6587\u4ef6\u683c\u5f0f\u4e0d\u5bf9');
+            if (!data.members || !data.members['\\u59d0\\u59d0'] || !data.members['\\u5f1f\\u5f1f']) {
+              showToast('\\u274c \\u6587\\u4ef6\\u683c\\u5f0f\\u4e0d\\u5bf9');
               return;
             }
             app.data = data;
             saveData();
-            if (app.currentRole === '\u5bb6\u957f') renderParentDashboard();
+            if (app.currentRole === '\\u5bb6\\u957f') renderParentDashboard();
             showToast('✅ 数据导入成功！');
           } catch (err) {
-            showToast('\u274c \u6587\u4ef6\u89e3\u6790\u5931\u8d25');
+            showToast('\\u274c \\u6587\\u4ef6\\u89e3\\u6790\\u5931\\u8d25');
           }
         };
         reader.readAsText(file);
@@ -1633,36 +1684,76 @@
         }
       });
 
-      console.log('\U0001f3c6 Hermes Family Points loaded.');
-      console.log('\U0001f4e6 Data:', app.data);
-      console.log('\u2601\ufe0f CF KV:', CF.enabled ? 'ENABLED' : 'DISABLED (localStorage)');
+      console.log('\\U0001f3c6 Hermes Family Points loaded.');
+      console.log('\\U0001f4e6 Data:', app.data);
+      console.log('\☁\️ CF KV:', CF.enabled ? 'ENABLED' : 'DISABLED (localStorage)');
 
       // Cloud sync: on load, merge cloud data (cloud wins over local)
       if (CF.enabled) {
-        showToast('\U0001f504 \u6b63\u5728\u540c\u6b65\u6570\u636e...', 2000);
+        showToast('🔄 正在同步云端数据...', 2000);
         CF.fetchAll().then(function(cloudData) {
           if (cloudData && cloudData.members) {
             var localVersion = app.data.version || 0;
             var cloudVersion = cloudData.version || 0;
             // Cloud is newer or same → use cloud data
             if (cloudVersion >= localVersion) {
-              app.data = cloudData;
-              // 直接写 localStorage，不调 saveData()，避免回写 KV 造成循环
+              // 防御性初始化：确保每个成员有完整的必要属性
+              for (var _name in cloudData.members) {
+                var _m = cloudData.members[_name];
+                if (!_m.logs) _m.logs = [];
+                if (!_m.tasks) _m.tasks = [];
+                if (!_m.tasksDoneToday) _m.tasksDoneToday = [];
+                if (!_m.tasksDoneDate) _m.tasksDoneDate = '';
+                if (_m.goal === undefined) _m.goal = null;
+                if (_m.points === undefined) _m.points = 0;
+              }
+              // 合并云端数据到现有对象，保持 app.data.members 引用不变！
+              // 逐个属性合并，不替换 members 对象本身
+              // 这样所有闭包中的 member 引用依然有效
+              if (cloudData.version) app.data.version = cloudData.version;
+              // 逐成员合并属性到现有成员对象
+              for (var _cpName in cloudData.members) {
+                var cloudMem = cloudData.members[_cpName];
+                var localMem = app.data.members[_cpName];
+                if (localMem && cloudMem) {
+                  // 合并 cloudMem 的属性到 localMem，保持引用
+                  for (var _cpKey in cloudMem) {
+                    if (_cpKey === '_processing' || _cpKey === 'tasksDoneToday' || _cpKey === 'tasksDoneDate') continue; // 跳过死锁标记和本机状态
+                    localMem[_cpKey] = cloudMem[_cpKey];
+                  }
+                }
+              }
+              // 清除云端带来的 _processing 死锁标记
+              delete app.data._processing;
+              // 确保每个成员有默认任务（云端可能为空）
+              for (var _n2 in DEFAULT_DATA.members) {
+                var _m2 = app.data.members[_n2];
+                if (_m2) {
+                  if (!_m2.logs) _m2.logs = [];
+                  if (!_m2.tasks || _m2.tasks.length === 0) {
+                    _m2.tasks = JSON.parse(JSON.stringify(DEFAULT_DATA.members[_n2].tasks || []));
+                  }
+                  if (!_m2.tasksDoneToday) _m2.tasksDoneToday = [];
+                  if (!_m2.tasksDoneDate) _m2.tasksDoneDate = '';
+                  if (_m2.goal === undefined) _m2.goal = null;
+                  if (_m2.points === undefined) _m2.points = 0;
+                }
+              }
               localStorage.setItem(STORAGE_KEY, JSON.stringify(app.data));
-              console.log('\u2601\ufe0f Synced from cloud (v' + cloudVersion + ')');
-              showToast('\u2705 \u4e91\u7aef\u6570\u636e\u540c\u6b65\u5b8c\u6210', 1500);
+              console.log('\☁\️ Synced from cloud (v' + cloudVersion + ')');
+              showToast('✅ 云端数据已同步', 1500);
             } else {
               // Local is newer → push local to cloud
               CF.saveAll(app.data);
-              console.log('\u2601\ufe0f Pushed local data to cloud (v' + localVersion + ')');
+              console.log('\☁\️ Pushed local data to cloud (v' + localVersion + ')');
             }
           } else {
             // No cloud data yet → push local
             CF.saveAll(app.data);
-            console.log('\u2601\ufe0f Initial cloud sync');
+            console.log('\☁\️ Initial cloud sync');
           }
         }).catch(function() {
-          console.log('\u2601\ufe0f Cloud unavailable, using localStorage');
+          console.log('\☁\️ Cloud unavailable, using localStorage');
         });
       }
 
@@ -1670,4 +1761,59 @@
   </script>
 
 </body>
-</html>
+</html>`;
+
+async function handleApi(request, env) {
+  const url = new URL(request.url);
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      }
+    });
+  }
+  if (request.method === 'GET') {
+    const data = await env.FAMILY_POINTS.get('family_points_data', 'json');
+    return new Response(JSON.stringify(data || null), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      }
+    });
+  }
+  if (request.method === 'PUT') {
+    try {
+      const data = await request.json();
+      await env.FAMILY_POINTS.put('family_points_data', JSON.stringify(data));
+      return new Response(JSON.stringify({ success: true }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        }
+      });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: e.message }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        }
+      });
+    }
+  }
+  return new Response('Method not allowed', { status: 405 });
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    if (url.pathname === '/api/points') {
+      return handleApi(request, env);
+    }
+    return new Response(HTML, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    });
+  }
+};
