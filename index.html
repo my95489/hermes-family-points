@@ -562,11 +562,14 @@
         <div class="text-sm font-semibold mb-3 px-1" style="color:var(--text-secondary);">🔄 数据同步</div>
         <div class="neu rounded-2xl p-4" style="background:var(--bg);">
           <div class="text-xs mb-3" style="color:var(--text-secondary);">导出数据，然后在另一个设备上导入，即可同步积分和任务</div>
-          <div class="flex gap-2">
+          <div class="flex gap-2 mb-3">
             <button onclick="exportData()" class="flex-1 neu-btn rounded-xl py-2 text-sm font-bold" style="color:var(--blue-dark);">📤 导出数据</button>
             <button onclick="document.getElementById('import-input').click()" class="flex-1 neu-btn rounded-xl py-2 text-sm font-bold" style="color:var(--purple-dark);">📥 导入数据</button>
           </div>
           <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)">
+          <div class="divider my-3"></div>
+          <div class="text-xs mb-1 font-bold" style="color:var(--text-secondary);">☁️ 云自动同步</div>
+          <div class="text-xs" style="color:var(--text-secondary);">已对接 Cloudflare KV，数据自动跨设备同步</div>
         </div>
       </div>
 
@@ -598,8 +601,11 @@
           if (!this.enabled) return null;
           try {
             const resp = await fetch(this.apiUrl);
-            if (resp.ok) return await resp.json();
-          } catch (e) { /* silently fall back to localStorage */ }
+            if (resp.ok) {
+              const text = await resp.text();
+              return text ? JSON.parse(text) : null;
+            }
+          } catch (e) { /* fallback to localStorage */ }
           return null;
         },
         async saveAll(data) {
@@ -610,7 +616,7 @@
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(data)
             });
-          } catch (e) { /* silently fall back to localStorage */ }
+          } catch (e) { /* fallback to localStorage */ }
         }
       };
 
