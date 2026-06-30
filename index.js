@@ -1165,7 +1165,8 @@ const HTML = `<!DOCTYPE html>
           html += '<div class="day-group">';
           html += '<div class="day-header" onclick="toggleDay(this)" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin:4px 0;border-radius:12px;background:var(--surface);box-shadow:inset -2px -2px 4px var(--shadow-light),inset 2px 2px 4px var(--shadow-dark);cursor:pointer;">';
           html += '<span class="text-xs font-bold" style="color:var(--text-secondary);">📅 ' + g.label + ' <span class="arrow" style="font-size:10px;">' + arrow + '</span></span>';
-          html += '<span class="text-xs font-bold" style="color:' + subColor + ';">' + subSign + g.subtotal + ' 分</span>';
+          html += '<span><span class="text-xs font-bold" style="color:' + subColor + ';">' + subSign + g.subtotal + ' 分</span>';
+          html += '<span class="text-xs" onclick="event.stopPropagation();deleteDay(\'' + key + '\')" style="cursor:pointer;margin-left:8px;color:var(--red);font-size:13px;">🗑️</span></span>';
           html += '</div>';
           html += '<div class="day-body"' + collapsed + '>';
           g.logs.reverse().forEach(function(l) {
@@ -1470,6 +1471,25 @@ const HTML = `<!DOCTYPE html>
           if (Number(m.logs[i].timestamp) === Number(timestamp) && m.logs[i].action === action) {
             m.logs.splice(i, 1);
             break;
+          }
+        }
+        saveData();
+        renderParentLog();
+      };
+
+      window.deleteDay = function(dayKey) {
+        if (!confirm('确定要删除 ' + dayKey + ' 的全部记录吗？')) return;
+        // Collect all log timestamps for this day
+        var toDelete = [];
+        for (var name in app.data.members) {
+          if (name === '家长') continue;
+          var logs = app.data.members[name].logs || [];
+          for (var i = logs.length - 1; i >= 0; i--) {
+            var d = new Date(logs[i].timestamp);
+            var k = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+            if (k === dayKey) {
+              logs.splice(i, 1);
+            }
           }
         }
         saveData();
