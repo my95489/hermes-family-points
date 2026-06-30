@@ -674,9 +674,6 @@ const HTML = `<!DOCTYPE html>
               if (!m.tasksDoneToday) m.tasksDoneToday = [];
               if (!m.tasksDoneDate) m.tasksDoneDate = '';
               if (m.goal === undefined) m.goal = null;
-              // 始终清除 tasksDoneToday（云同步已排除此字段，localStorage 残留会误判）
-              m.tasksDoneToday = [];
-              m.tasksDoneDate = '';
             }
             // Version migration: clear old demo data + update PINs
             if (!data.version || data.version < DATA_VERSION) {
@@ -998,7 +995,7 @@ const HTML = `<!DOCTYPE html>
           var prog = Math.min(member.points / member.goal.target, 1);
           var pct = Math.round(prog * 100);
           goalContainer.innerHTML = '<div class="neu rounded-2xl p-4 mb-4" style="background:var(--bg);">' +
-            '<div class="text-sm font-semibold mb-1">\\U0001f3af \\u6211\\u7684\\u76ee\\u6807: ' + member.goal.label + '</div>' +
+            '<div class="text-sm font-semibold mb-1">🎯 我的目标: ' + member.goal.label + '</div>' +
             '<div class="w-full h-3 rounded-full" style="background:var(--shadow-dark);overflow:hidden;">' +
             '<div class="h-full rounded-full transition-all duration-500" style="width:' + pct + '%;background:linear-gradient(90deg,var(--pink),var(--purple));"></div></div>' +
             '<div class="flex justify-between text-xs mt-1" style="color:var(--text-secondary);">' +
@@ -1038,8 +1035,6 @@ const HTML = `<!DOCTYPE html>
             var task = myTasks.find(function(t) { return t.id === taskId; });
             if (!task) return;
             // 找到任务后再标记，防止误标
-              member.tasksDoneToday.push(taskId);
-              console.log('CALL doChildTask:', role, task.id, task.name, 'member.points before:', member.points);
               doChildTask(role, task);
           });
         });
@@ -1096,8 +1091,6 @@ const HTML = `<!DOCTYPE html>
           // 5. 核心暴力加分：强制读取当前分为数字，加上新分
           var oldPts = parseInt(member.points, 10) || 0;
           member.points = oldPts + ptsToAdd;
-
-          console.log('🎯 加分成功！从 ' + oldPts + ' 变成 ' + member.points);
 
           // 6. 记录日志和防刷分名单
           member.logs.push({
@@ -1718,7 +1711,7 @@ const HTML = `<!DOCTYPE html>
                 if (localMem && cloudMem) {
                   // 合并 cloudMem 的属性到 localMem，保持引用
                   for (var _cpKey in cloudMem) {
-                    if (_cpKey === '_processing' || _cpKey === 'tasksDoneToday' || _cpKey === 'tasksDoneDate') continue; // 跳过死锁标记和本机状态
+                    if (_cpKey === '_processing') continue; // 跳过死锁标记
                     localMem[_cpKey] = cloudMem[_cpKey];
                   }
                 }
@@ -1734,6 +1727,16 @@ const HTML = `<!DOCTYPE html>
                     _m2.tasks = JSON.parse(JSON.stringify(DEFAULT_DATA.members[_n2].tasks || []));
                   }
                   if (!_m2.tasksDoneToday) _m2.tasksDoneToday = [];
+                  // 过滤无效的taskId（云端可能带了另一台设备的旧任务ID）
+                  if (_m2.tasksDoneToday.length > 0) {
+                    var validTasks = {};
+                    for (var _vt = 0; _vt < (_m2.tasks || []).length; _vt++) {
+                      validTasks[_m2.tasks[_vt].id] = true;
+                    }
+                    _m2.tasksDoneToday = _m2.tasksDoneToday.filter(function(tid) {
+                      return !!validTasks[tid];
+                    });
+                  }
                   if (!_m2.tasksDoneDate) _m2.tasksDoneDate = '';
                   if (_m2.goal === undefined) _m2.goal = null;
                   if (_m2.points === undefined) _m2.points = 0;
@@ -1764,7 +1767,6 @@ const HTML = `<!DOCTYPE html>
 </html>`;
 
 async function handleApi(request, env) {
-  const url = new URL(request.url);
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
@@ -1777,10 +1779,7 @@ async function handleApi(request, env) {
   if (request.method === 'GET') {
     const data = await env.FAMILY_POINTS.get('family_points_data', 'json');
     return new Response(JSON.stringify(data || null), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      }
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });
   }
   if (request.method === 'PUT') {
@@ -1788,18 +1787,12 @@ async function handleApi(request, env) {
       const data = await request.json();
       await env.FAMILY_POINTS.put('family_points_data', JSON.stringify(data));
       return new Response(JSON.stringify({ success: true }), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        }
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });
     } catch (e) {
       return new Response(JSON.stringify({ error: e.message }), {
         status: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        }
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });
     }
   }
