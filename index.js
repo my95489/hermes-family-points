@@ -1000,7 +1000,7 @@ const HTML = `<!DOCTYPE html>
             '<div class="h-full rounded-full transition-all duration-500" style="width:' + pct + '%;background:linear-gradient(90deg,var(--pink),var(--purple));"></div></div>' +
             '<div class="flex justify-between text-xs mt-1" style="color:var(--text-secondary);">' +
             '<span>' + member.points + ' \\u5206</span>' +
-            '<span>' + (pct >= 100 ? '\\U0001f389 \\u8fbe成\\uff01' : member.goal.target + ' \\u5206') + '</span></div></div>';
+            '<span>' + (pct >= 100 ? '🎉 达成！' : member.goal.target + ' \\u5206') + '</span></div></div>';
           goalContainer.style.display = '';
         } else {
           goalContainer.style.display = 'none';
